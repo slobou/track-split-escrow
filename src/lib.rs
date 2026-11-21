@@ -120,6 +120,86 @@ impl TrackSplitEscrow {
         s.extend_ttl(&key, 17_280, 518_400);
         Ok(escrow)
     }
+
+    /// Un firmante designado aprueba la liberación del escrow fondeado.
+    pub fn aprobar(env: Env, id: u64, firmante: Address) -> Result<Escrow, Error> {
+        firmante.require_auth();
+        let key = DataKey::Escrow(id);
+        let s = env.storage().persistent();
+        let mut escrow: Escrow = s.get(&key).ok_or(Error::NoExiste)?;
+        if escrow.estado != Estado::Fondeado {
+            return Err(Error::EstadoInvalido);
+        }
+        if !Self::es_firmante(&escrow.firmantes, &firmante) {
+            return Err(Error::NoEsFirmante);
+        }
+        let aprobo_key = DataKey::Aprobo(id, firmante.clone());
+        if s.has(&aprobo_key) {
+            return Err(Error::YaAprobo);
+        }
+        s.set(&aprobo_key, &true);
+        s.extend_ttl(&aprobo_key, 17_280, 518_400);
+        escrow.aprobaciones += 1;
+        s.set(&key, &escrow);
+        s.extend_ttl(&key, 17_280, 518_400);
+        Ok(escrow)
+    }
+
+    /// Libera el escrow cuando se alcanza el umbral de firmas.
+    pub fn liberar(env: Env, id: u64) -> Result<Escrow, Error> {
+        let key = DataKey::Escrow(id);
+        let s = env.storage().persistent();
+        let mut escrow: Escrow = s.get(&key).ok_or(Error::NoExiste)?;
+        if escrow.estado != Estado::Fondeado {
+            return Err(Error::EstadoInvalido);
+        }
+        if escrow.aprobaciones < escrow.umbral {
+            return Err(Error::UmbralNoAlcanzado);
+        }
+        escrow.estado = Estado::Liberado;
+        s.set(&key, &escrow);
+        s.extend_ttl(&key, 17_280, 518_400);
+        Ok(escrow)
+    }
+
+    /// El pagador cancela un escrow que aún no fue liberado.
+    pub fn cancelar(env: Env, id: u64) -> Result<Escrow, Error> {
+        let key = DataKey::Escrow(id);
+        let s = env.storage().persistent();
+        let mut escrow: Escrow = s.get(&key).ok_or(Error::NoExiste)?;
+        if escrow.estado == Estado::Liberado || escrow.estado == Estado::Cancelado {
+            return Err(Error::EstadoInvalido);
+        }
+        escrow.pagador.require_auth();
+        escrow.estado = Estado::Cancelado;
+        s.set(&key, &escrow);
+        s.extend_ttl(&key, 17_280, 518_400);
+        Ok(escrow)
+    }
+
+    /// Devuelve el escrow o error si no existe.
+    pub fn consultar(env: Env, id: u64) -> Result<Escrow, Error> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Escrow(id))
+            .ok_or(Error::NoExiste)
+    }
+
+    /// Indica si `firmante` ya aprobó el escrow.
+    pub fn aprobo(env: Env, id: u64, firmante: Address) -> bool {
+        env.storage()
+            .persistent()
+            .has(&DataKey::Aprobo(id, firmante))
+    }
+
+    fn es_firmante(firmantes: &Vec<Address>, quien: &Address) -> bool {
+        for f in firmantes.iter() {
+            if f == *quien {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 #[cfg(test)]
