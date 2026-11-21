@@ -63,6 +63,63 @@ impl TrackSplitEscrow {
     pub fn __constructor(env: Env) {
         env.storage().instance().set(&DataKey::NextId, &1u64);
     }
+
+    /// Crea un escrow para `track` con firmantes y umbral de liberación.
+    pub fn crear(
+        env: Env,
+        pagador: Address,
+        beneficiario: Address,
+        track: String,
+        monto: i128,
+        firmantes: Vec<Address>,
+        umbral: u32,
+    ) -> Result<u64, Error> {
+        pagador.require_auth();
+        if monto <= 0 {
+            return Err(Error::MontoCero);
+        }
+        let n = firmantes.len();
+        if n == 0 {
+            return Err(Error::SinFirmantes);
+        }
+        if umbral == 0 || umbral > n {
+            return Err(Error::UmbralInvalido);
+        }
+
+        let id: u64 = env.storage().instance().get(&DataKey::NextId).unwrap_or(1);
+        let escrow = Escrow {
+            id,
+            track,
+            pagador,
+            beneficiario,
+            monto,
+            firmantes,
+            umbral,
+            aprobaciones: 0,
+            estado: Estado::Abierto,
+        };
+        let key = DataKey::Escrow(id);
+        let s = env.storage().persistent();
+        s.set(&key, &escrow);
+        s.extend_ttl(&key, 17_280, 518_400);
+        env.storage().instance().set(&DataKey::NextId, &(id + 1));
+        Ok(id)
+    }
+
+    /// El pagador confirma el depósito y deja el escrow en estado Fondeado.
+    pub fn depositar(env: Env, id: u64) -> Result<Escrow, Error> {
+        let key = DataKey::Escrow(id);
+        let s = env.storage().persistent();
+        let mut escrow: Escrow = s.get(&key).ok_or(Error::NoExiste)?;
+        if escrow.estado != Estado::Abierto {
+            return Err(Error::EstadoInvalido);
+        }
+        escrow.pagador.require_auth();
+        escrow.estado = Estado::Fondeado;
+        s.set(&key, &escrow);
+        s.extend_ttl(&key, 17_280, 518_400);
+        Ok(escrow)
+    }
 }
 
 #[cfg(test)]
