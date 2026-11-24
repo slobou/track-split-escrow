@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #0b0a09;
+  --ink-soft: #161311;
+  --panel: #1a1612;
+  --line: rgba(232, 214, 180, 0.14);
+  --copper: #c9854a;
+  --copper-bright: #e0a56a;
+  --cream: #efe6d6;
+  --muted: #9a8f7e;
+  --moss: #5c7a62;
+  --danger: #c45c4a;
+}
+
+@theme inline {
+  --font-display: var(--font-syne);
+  --font-body: var(--font-source);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-copper: var(--copper);
+  --color-copper-bright: var(--copper-bright);
+  --color-cream: var(--cream);
+  --color-muted: var(--muted);
+  --color-moss: var(--moss);
+  --color-danger: var(--danger);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-body), Georgia, serif;
+}
+
+.studio-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(201, 133, 74, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 0%, rgba(92, 122, 98, 0.12), transparent 50%),
+    linear-gradient(180deg, #12100e 0%, var(--ink) 40%, #080706 100%);
+}
+
+.wave-mask {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='40' viewBox='0 0 240 40' fill='none'%3E%3Cpath d='M0 20 Q15 4 30 20 T60 20 T90 20 T120 20 T150 20 T180 20 T210 20 T240 20' stroke='%23c9854a' stroke-opacity='0.22' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 240px 40px;
+  opacity: 0.9;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.7s ease-out both;
+}
+
+.eq-bar {
+  transform-origin: bottom;
+  animation: pulse-bar 1.4s ease-in-out infinite;
+}
