@@ -59,6 +59,9 @@ NEXT_PUBLIC_CONTRACT_ID=C...
 ```
 
 Sin `CONTRACT_ID`, la UI corre en **modo demo** (estado local) para recorrer el flujo.
+En demo, incluí tu propia dirección entre los firmantes si querés aprobar después.
+
+Más detalle del flujo: [docs/flujo.md](docs/flujo.md).
 
 ## Stack
 
