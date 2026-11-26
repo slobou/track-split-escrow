@@ -1,19 +1,20 @@
 export type Estado = "Abierto" | "Fondeado" | "Liberado" | "Cancelado";
 
+export type Firmante = { nombre: string; address: string };
+
 export type EscrowDemo = {
   id: number;
   track: string;
   pagador: string;
   beneficiario: string;
   monto: number;
-  firmantes: string[];
+  firmantes: Firmante[];
   umbral: number;
-  aprobaciones: number;
   aprobaron: string[];
   estado: Estado;
 };
 
-const KEY = "track-split-escrows";
+const KEY = "track-split-escrows-v2";
 
 function leer(): EscrowDemo[] {
   if (typeof window === "undefined") return [];
@@ -28,8 +29,26 @@ function guardar(lista: EscrowDemo[]) {
   localStorage.setItem(KEY, JSON.stringify(lista));
 }
 
+function buscar(lista: EscrowDemo[], id: number) {
+  const e = lista.find((x) => x.id === id);
+  if (!e) throw new Error("Ese escrow no existe.");
+  return e;
+}
+
 export function listarEscrows(): EscrowDemo[] {
   return leer().sort((a, b) => b.id - a.id);
+}
+
+/** Acepta "Nombre: GADDR…" o solo la dirección, una por línea o separadas por coma. */
+export function parsearFirmantes(texto: string): Firmante[] {
+  return texto
+    .split(/[\n,]+/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l, i) => {
+      const [a, b] = l.split(":").map((p) => p.trim());
+      return b ? { nombre: a, address: b } : { nombre: `Firmante ${i + 1}`, address: a };
+    });
 }
 
 export function crearEscrow(input: {
@@ -37,20 +56,19 @@ export function crearEscrow(input: {
   pagador: string;
   beneficiario: string;
   monto: number;
-  firmantes: string[];
+  firmantes: Firmante[];
   umbral: number;
 }): EscrowDemo {
   const lista = leer();
-  const id = (lista.at(-1)?.id ?? 0) + 1;
+  const id = Math.max(0, ...lista.map((e) => e.id)) + 1;
   const e: EscrowDemo = {
     id,
     track: input.track.trim(),
     pagador: input.pagador,
     beneficiario: input.beneficiario.trim(),
     monto: input.monto,
-    firmantes: input.firmantes.map((f) => f.trim()).filter(Boolean),
+    firmantes: input.firmantes,
     umbral: input.umbral,
-    aprobaciones: 0,
     aprobaron: [],
     estado: "Abierto",
   };
@@ -61,34 +79,30 @@ export function crearEscrow(input: {
 
 export function depositar(id: number, quien: string): EscrowDemo {
   const lista = leer();
-  const e = lista.find((x) => x.id === id);
-  if (!e) throw new Error("Escrow no existe");
-  if (e.estado !== "Abierto") throw new Error("Estado inválido");
-  if (e.pagador !== quien) throw new Error("Solo el pagador puede depositar");
+  const e = buscar(lista, id);
+  if (e.estado !== "Abierto") throw new Error("Este escrow ya no está abierto.");
+  if (e.pagador !== quien) throw new Error("Solo el pagador puede depositar.");
   e.estado = "Fondeado";
   guardar(lista);
   return e;
 }
 
-export function aprobar(id: number, quien: string): EscrowDemo {
+export function aprobar(id: number, firmante: string): EscrowDemo {
   const lista = leer();
-  const e = lista.find((x) => x.id === id);
-  if (!e) throw new Error("Escrow no existe");
-  if (e.estado !== "Fondeado") throw new Error("Debe estar fondeado");
-  if (!e.firmantes.includes(quien)) throw new Error("No es firmante");
-  if (e.aprobaron.includes(quien)) throw new Error("Ya aprobó");
-  e.aprobaron.push(quien);
-  e.aprobaciones = e.aprobaron.length;
+  const e = buscar(lista, id);
+  if (e.estado !== "Fondeado") throw new Error("El escrow debe estar fondeado para firmar.");
+  if (!e.firmantes.some((f) => f.address === firmante)) throw new Error("Esa dirección no es firmante.");
+  if (e.aprobaron.includes(firmante)) throw new Error("Ya firmó este escrow.");
+  e.aprobaron.push(firmante);
   guardar(lista);
   return e;
 }
 
 export function liberar(id: number): EscrowDemo {
   const lista = leer();
-  const e = lista.find((x) => x.id === id);
-  if (!e) throw new Error("Escrow no existe");
-  if (e.estado !== "Fondeado") throw new Error("Estado inválido");
-  if (e.aprobaciones < e.umbral) throw new Error("Umbral no alcanzado");
+  const e = buscar(lista, id);
+  if (e.estado !== "Fondeado") throw new Error("El escrow debe estar fondeado.");
+  if (e.aprobaron.length < e.umbral) throw new Error("Aún faltan firmas para liberar.");
   e.estado = "Liberado";
   guardar(lista);
   return e;
@@ -96,12 +110,9 @@ export function liberar(id: number): EscrowDemo {
 
 export function cancelar(id: number, quien: string): EscrowDemo {
   const lista = leer();
-  const e = lista.find((x) => x.id === id);
-  if (!e) throw new Error("Escrow no existe");
-  if (e.estado === "Liberado" || e.estado === "Cancelado") {
-    throw new Error("Ya cerrado");
-  }
-  if (e.pagador !== quien) throw new Error("Solo el pagador puede cancelar");
+  const e = buscar(lista, id);
+  if (e.estado === "Liberado" || e.estado === "Cancelado") throw new Error("Este escrow ya está cerrado.");
+  if (e.pagador !== quien) throw new Error("Solo el pagador puede cancelar.");
   e.estado = "Cancelado";
   guardar(lista);
   return e;
