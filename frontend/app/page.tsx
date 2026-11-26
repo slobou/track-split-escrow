@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { RefreshCw } from "lucide-react";
 import {
   aprobar,
   cancelar,
@@ -11,28 +13,9 @@ import {
   listarEscrows,
 } from "@/lib/demo";
 import { connectWallet, disconnectWallet } from "@/lib/wallet";
-
-const corto = (a: string) => (a.length > 10 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
-
-const field =
-  "w-full border border-[var(--line)] bg-[var(--ink)] px-4 py-3 text-sm text-[var(--cream)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--copper)]";
-const btnPrimary =
-  "bg-[var(--copper)] px-5 py-3 font-[family-name:var(--font-syne)] text-sm font-semibold tracking-wide text-[var(--ink)] transition hover:bg-[var(--copper-bright)] active:scale-[0.98] disabled:opacity-40";
-const btnGhost =
-  "border border-[var(--line)] px-4 py-2 font-[family-name:var(--font-syne)] text-sm text-[var(--cream)] transition hover:border-[var(--copper)] hover:text-[var(--copper-bright)] active:scale-[0.98]";
-
-function estadoColor(e: EscrowDemo["estado"]) {
-  switch (e) {
-    case "Abierto":
-      return "text-[var(--muted)]";
-    case "Fondeado":
-      return "text-[var(--copper-bright)]";
-    case "Liberado":
-      return "text-[var(--moss)]";
-    case "Cancelado":
-      return "text-[var(--danger)]";
-  }
-}
+import { Hero } from "@/components/Hero";
+import { EscrowForm, NuevoEscrow } from "@/components/EscrowForm";
+import { EscrowCard } from "@/components/EscrowCard";
 
 export default function Home() {
   const [address, setAddress] = useState<string | null>(null);
@@ -40,337 +23,157 @@ export default function Home() {
   const [mensaje, setMensaje] = useState("");
   const [busy, setBusy] = useState(false);
 
-  function refresh() {
-    setEscrows(listarEscrows());
-  }
+  const refresh = () => setEscrows(listarEscrows());
 
   useEffect(() => {
     refresh();
   }, []);
 
+  useEffect(() => {
+    if (!mensaje) return;
+    const t = setTimeout(() => setMensaje(""), 4500);
+    return () => clearTimeout(t);
+  }, [mensaje]);
+
   async function conectar() {
     try {
-      const addr = await connectWallet();
-      setAddress(addr);
-      setMensaje("");
+      setAddress(await connectWallet());
     } catch {
-      setMensaje("No se pudo conectar la wallet. Podés pegar una dirección demo abajo.");
+      setMensaje("No se pudo conectar la wallet. Podés probar el modo demo.");
     }
   }
 
-  async function desconectar() {
+  async function salir() {
     try {
       await disconnectWallet();
-    } catch {
-      /* demo ok */
-    }
+    } catch {}
     setAddress(null);
   }
 
-  function usarDemo() {
-    const demo = "GDEMO" + Math.random().toString(36).slice(2, 10).toUpperCase() + "PAGADOR";
-    setAddress(demo.padEnd(56, "X").slice(0, 56));
-    setMensaje("Modo demo local — el estado vive en este navegador.");
+  function demo() {
+    setAddress("GPAGADOR" + "DEMO7K2MXQ4TBNV8LRCW5HYPEJ3AFZ6UGSD".slice(0, 36) + "X");
+    setMensaje("Modo demo: el estado vive solo en este navegador.");
   }
 
-  function onCrear(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!address) return;
-    const data = new FormData(e.currentTarget);
-    const track = String(data.get("track") || "").trim();
-    const beneficiario = String(data.get("beneficiario") || "").trim();
-    const monto = Number(data.get("monto"));
-    const umbral = Number(data.get("umbral"));
-    const firmantes = String(data.get("firmantes") || "")
-      .split(/[\n,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
+  function accion(fn: () => void, ok: string) {
     setBusy(true);
-    setMensaje("");
-    try {
-      if (!track || !beneficiario || !monto || firmantes.length === 0) {
-        throw new Error("Completá track, beneficiario, monto y firmantes.");
-      }
-      if (umbral < 1 || umbral > firmantes.length) {
-        throw new Error("El umbral debe estar entre 1 y la cantidad de firmantes.");
-      }
-      const created = crearEscrow({
-        track,
-        pagador: address,
-        beneficiario,
-        monto,
-        firmantes,
-        umbral,
-      });
-      setMensaje(`Escrow #${created.id} creado para “${created.track}”.`);
-      e.currentTarget.reset();
-      refresh();
-    } catch (err) {
-      setMensaje(err instanceof Error ? err.message : "Error");
-    }
-    setBusy(false);
-  }
-
-  function run(fn: () => void) {
-    setBusy(true);
-    setMensaje("");
     try {
       fn();
+      setMensaje(ok);
       refresh();
     } catch (err) {
-      setMensaje(err instanceof Error ? err.message : "Error");
+      setMensaje(err instanceof Error ? err.message : "Algo salió mal.");
     }
     setBusy(false);
   }
 
+  function onCrear(n: NuevoEscrow): boolean {
+    if (!address) return false;
+    if (n.umbral < 1 || n.umbral > n.firmantes.length) {
+      setMensaje("Las firmas necesarias deben estar entre 1 y el total de firmantes.");
+      return false;
+    }
+    let creado: EscrowDemo | null = null;
+    accion(() => {
+      creado = crearEscrow({ ...n, pagador: address });
+    }, "Escrow creado. Ahora bloqueá los fondos.");
+    return creado !== null;
+  }
+
+  const bloqueado = escrows
+    .filter((e) => e.estado === "Fondeado")
+    .reduce((s, e) => s + e.monto, 0);
+  const liberados = escrows.filter((e) => e.estado === "Liberado").length;
+
   return (
-    <main className="studio-bg relative min-h-screen overflow-hidden">
-      <div className="wave-mask pointer-events-none absolute inset-x-0 top-28 h-10" />
+    <>
+      <div className="aurora" />
+      <div className="grain" />
 
-      <div className="relative mx-auto flex w-full max-w-3xl flex-col gap-12 px-5 py-14 md:py-20">
-        <header className="animate-rise flex flex-col items-start gap-6">
-          <div className="flex items-end gap-3">
-            <div className="flex h-10 items-end gap-1 pb-1" aria-hidden>
-              {[0.4, 0.75, 1, 0.55, 0.85, 0.45].map((h, i) => (
-                <span
-                  key={i}
-                  className="eq-bar w-1.5 rounded-sm bg-[var(--copper)]"
-                  style={{ height: `${h * 28}px`, animationDelay: `${i * 0.12}s` }}
-                />
-              ))}
-            </div>
-            <p className="font-[family-name:var(--font-syne)] text-sm tracking-[0.28em] text-[var(--copper)] uppercase">
-              Track Split
-            </p>
-          </div>
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-14 px-5 py-8 sm:py-10">
+        <Hero address={address} onConectar={conectar} onDemo={demo} onSalir={salir} />
 
-          <h1 className="max-w-xl font-[family-name:var(--font-syne)] text-4xl leading-[1.05] font-bold tracking-tight text-[var(--cream)] md:text-5xl">
-            Escrow con firmas para tu próximo lanzamiento
-          </h1>
-
-          <p className="max-w-lg text-lg leading-relaxed text-[var(--muted)]">
-            El pagador bloquea el pago de la sesión. Productor y artistas aprueban. Al llegar al
-            umbral, se libera al beneficiario.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {address ? (
-              <>
-                <button type="button" onClick={desconectar} className={btnGhost}>
-                  <span className="font-mono text-xs">{corto(address)}</span> · Salir
-                </button>
-                <span className="text-sm text-[var(--muted)]">Testnet / demo local</span>
-              </>
-            ) : (
-              <>
-                <button type="button" onClick={conectar} className={btnPrimary}>
-                  Conectar wallet
-                </button>
-                <button type="button" onClick={usarDemo} className={btnGhost}>
-                  Modo demo
-                </button>
-              </>
-            )}
-          </div>
-        </header>
-
-        {!address && (
-          <p className="animate-rise text-[var(--muted)]" style={{ animationDelay: "0.1s" }}>
-            Conectá una wallet Stellar (Testnet) o entrá en modo demo para recorrer el flujo sin
-            red.
-          </p>
-        )}
-
-        {address && (
-          <>
-            <section
-              className="animate-rise border border-[var(--line)] bg-[var(--panel)]/80 p-6 md:p-8"
-              style={{ animationDelay: "0.12s" }}
+        <AnimatePresence>
+          {address && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="flex flex-col gap-10"
             >
-              <h2 className="mb-1 font-[family-name:var(--font-syne)] text-xl font-semibold">
-                Nuevo escrow
-              </h2>
-              <p className="mb-6 text-sm text-[var(--muted)]">
-                Una canción, un monto, N firmantes. El contrato Soroban replica este flujo on-chain.
-              </p>
-
-              <form onSubmit={onCrear} className="space-y-4">
-                <input
-                  name="track"
-                  required
-                  placeholder="Nombre del track / sesión"
-                  className={field}
-                />
-                <input
-                  name="beneficiario"
-                  required
-                  placeholder="Beneficiario (G…)"
-                  className={`${field} font-mono text-xs md:text-sm`}
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    name="monto"
-                    required
-                    type="number"
-                    min="1"
-                    step="1"
-                    placeholder="Monto (unidades)"
-                    className={field}
-                  />
-                  <input
-                    name="umbral"
-                    required
-                    type="number"
-                    min="1"
-                    defaultValue={2}
-                    placeholder="Umbral de firmas"
-                    className={field}
-                  />
-                </div>
-                <textarea
-                  name="firmantes"
-                  required
-                  rows={3}
-                  placeholder={"Firmantes (uno por línea)\nG… productor\nG… artista"}
-                  className={`${field} font-mono text-xs md:text-sm`}
-                />
-                <button type="submit" disabled={busy} className={`${btnPrimary} w-full sm:w-auto`}>
-                  {busy ? "Creando…" : "Crear escrow"}
-                </button>
-              </form>
-            </section>
-
-            <section className="animate-rise space-y-4" style={{ animationDelay: "0.2s" }}>
-              <div className="flex items-end justify-between gap-4">
-                <h2 className="font-[family-name:var(--font-syne)] text-xl font-semibold">
-                  Escrows
-                </h2>
-                <button type="button" onClick={refresh} className={btnGhost}>
-                  Actualizar
-                </button>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { k: "Bloqueado", v: bloqueado.toLocaleString("es"), u: "XLM" },
+                  { k: "Escrows", v: String(escrows.length), u: "" },
+                  { k: "Liberados", v: String(liberados), u: "" },
+                ].map((s) => (
+                  <div key={s.k} className="card px-5 py-4">
+                    <p className="font-mono text-[11px] tracking-wider text-[var(--muted)] uppercase">{s.k}</p>
+                    <p className="font-display mt-1 text-2xl font-bold tabular-nums sm:text-3xl">
+                      {s.v}
+                      {s.u && <span className="ml-1 text-xs font-medium text-[var(--muted)]">{s.u}</span>}
+                    </p>
+                  </div>
+                ))}
               </div>
 
-              {escrows.length === 0 && (
-                <p className="border border-dashed border-[var(--line)] px-5 py-10 text-center text-[var(--muted)]">
-                  Todavía no hay escrows en este navegador.
+              <EscrowForm onCrear={onCrear} busy={busy} />
+
+              <section className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-display text-2xl font-bold">Sesiones</h2>
+                  <button type="button" onClick={refresh} className="btn btn-ghost !px-3.5 !py-2 text-xs">
+                    <RefreshCw size={14} /> Actualizar
+                  </button>
+                </div>
+
+                {escrows.length === 0 ? (
+                  <p className="card border-dashed px-6 py-12 text-center text-[var(--muted)]">
+                    Todavía no hay sesiones. Creá la primera arriba.
+                  </p>
+                ) : (
+                  <ul className="space-y-5">
+                    <AnimatePresence initial={false}>
+                      {escrows.map((e) => (
+                        <EscrowCard
+                          key={e.id}
+                          escrow={e}
+                          busy={busy}
+                          onDepositar={() => accion(() => depositar(e.id, address), "Fondos bloqueados.")}
+                          onFirmar={(a) => accion(() => aprobar(e.id, a), "Firma registrada.")}
+                          onLiberar={() => accion(() => liberar(e.id), "Pago liberado al beneficiario.")}
+                          onCancelar={() => accion(() => cancelar(e.id, address), "Escrow cancelado.")}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </ul>
+                )}
+                <p className="font-mono text-[11px] text-[var(--muted)]">
+                  Demo: tocá un firmante para simular su firma desde su wallet.
                 </p>
-              )}
+              </section>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              <ul className="space-y-4">
-                {escrows.map((e) => (
-                  <li
-                    key={e.id}
-                    className="border border-[var(--line)] bg-[var(--ink-soft)]/90 p-5 md:p-6"
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <h3 className="font-[family-name:var(--font-syne)] text-lg font-semibold">
-                        #{e.id} · {e.track}
-                      </h3>
-                      <span className={`text-sm font-medium ${estadoColor(e.estado)}`}>
-                        {e.estado}
-                      </span>
-                    </div>
-
-                    <dl className="mt-4 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2">
-                      <div>
-                        Monto:{" "}
-                        <span className="font-mono text-[var(--cream)]">{e.monto}</span>
-                      </div>
-                      <div>
-                        Firmas:{" "}
-                        <span className="text-[var(--cream)]">
-                          {e.aprobaciones}/{e.umbral}
-                        </span>
-                      </div>
-                      <div className="font-mono text-xs">
-                        Pagador {corto(e.pagador)}
-                      </div>
-                      <div className="font-mono text-xs">
-                        Benef. {corto(e.beneficiario)}
-                      </div>
-                    </dl>
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {e.estado === "Abierto" && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className={btnPrimary}
-                          onClick={() =>
-                            run(() => {
-                              depositar(e.id, address);
-                              setMensaje(`Escrow #${e.id} fondeado.`);
-                            })
-                          }
-                        >
-                          Depositar
-                        </button>
-                      )}
-                      {e.estado === "Fondeado" && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            className={btnPrimary}
-                            onClick={() =>
-                              run(() => {
-                                aprobar(e.id, address);
-                                setMensaje(`Aprobaste el escrow #${e.id}.`);
-                              })
-                            }
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy || e.aprobaciones < e.umbral}
-                            className={btnGhost}
-                            onClick={() =>
-                              run(() => {
-                                liberar(e.id);
-                                setMensaje(`Escrow #${e.id} liberado.`);
-                              })
-                            }
-                          >
-                            Liberar
-                          </button>
-                        </>
-                      )}
-                      {(e.estado === "Abierto" || e.estado === "Fondeado") && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className={btnGhost}
-                          onClick={() =>
-                            run(() => {
-                              cancelar(e.id, address);
-                              setMensaje(`Escrow #${e.id} cancelado.`);
-                            })
-                          }
-                        >
-                          Cancelar
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </>
-        )}
-
-        {mensaje && (
-          <p className="border-l-2 border-[var(--copper)] pl-4 text-sm text-[var(--cream)]">
-            {mensaje}
-          </p>
-        )}
-
-        <footer className="border-t border-[var(--line)] pt-8 text-sm text-[var(--muted)]">
-          Soroban · Oppia Bootcamp ·{" "}
-          <span className="text-[var(--cream)]/70">cargo test && stellar contract build</span>
+        <footer className="border-t border-[var(--line)] pt-6 font-mono text-xs text-[var(--muted)]">
+          Soroban · Oppia Bootcamp · Stellar Testnet
         </footer>
-      </div>
-    </main>
+      </main>
+
+      <AnimatePresence>
+        {mensaje && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="card fixed inset-x-0 bottom-6 z-50 mx-auto w-fit max-w-[90vw] border-[var(--line-strong)] bg-[#06201d]/90 px-5 py-3 text-sm font-medium"
+          >
+            {mensaje}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
