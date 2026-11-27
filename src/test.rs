@@ -264,3 +264,49 @@ fn depositar_pide_firma_del_pagador() {
     client.depositar(&id);
     assert_eq!(env.auths()[0].0, pagador);
 }
+
+fn escrow_basico(env: &Env, client: &TrackSplitEscrowClient<'static>) -> (u64, Address, Address) {
+    let pagador = Address::generate(env);
+    let bene = Address::generate(env);
+    let p = Address::generate(env);
+    let a1 = Address::generate(env);
+    let id = client.crear(
+        &pagador,
+        &bene,
+        &String::from_str(env, "Single de verano"),
+        &100,
+        &vec![env, p.clone(), a1],
+        &1,
+    );
+    (id, pagador, p)
+}
+
+#[test]
+fn no_se_aprueba_sin_depositar() {
+    let (env, client) = setup();
+    env.mock_all_auths();
+    let (id, _pagador, firmante) = escrow_basico(&env, &client);
+    assert_eq!(
+        client.try_aprobar(&id, &firmante),
+        Err(Ok(Error::EstadoInvalido))
+    );
+}
+
+#[test]
+fn no_se_libera_sin_depositar() {
+    let (env, client) = setup();
+    env.mock_all_auths();
+    let (id, _pagador, _firmante) = escrow_basico(&env, &client);
+    assert_eq!(client.try_liberar(&id), Err(Ok(Error::EstadoInvalido)));
+}
+
+#[test]
+fn no_se_cancela_un_escrow_liberado() {
+    let (env, client) = setup();
+    env.mock_all_auths();
+    let (id, _pagador, firmante) = escrow_basico(&env, &client);
+    client.depositar(&id);
+    client.aprobar(&id, &firmante);
+    client.liberar(&id);
+    assert_eq!(client.try_cancelar(&id), Err(Ok(Error::EstadoInvalido)));
+}
