@@ -48,10 +48,9 @@ pub enum Error {
     UmbralInvalido = 3,
     NoExiste = 4,
     EstadoInvalido = 5,
-    NoEsPagador = 6,
-    NoEsFirmante = 7,
-    YaAprobo = 8,
-    UmbralNoAlcanzado = 9,
+    NoEsFirmante = 6,
+    YaAprobo = 7,
+    UmbralNoAlcanzado = 8,
 }
 
 #[contract]
