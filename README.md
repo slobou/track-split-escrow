@@ -137,7 +137,7 @@ npm run dev
 Abrir [http://localhost:3000](http://localhost:3000).
 
 - `/` — landing: qué es, cómo funciona y una mezcladora interactiva para ver las firmas.
-- `/estudio` — la app: conectar wallet (o modo demo), crear sesiones, bloquear, firmar y liberar.
+- `/estudio` — la app: conectar wallet de Testnet (o modo demo), crear sesiones, bloquear, firmar y liberar. Cada acción se firma con la wallet y se envía al contrato; la app muestra el enlace a la transacción en Stellar Expert.
 
 ---
 
@@ -190,6 +190,13 @@ stellar contract invoke --id CCVMNYMN3FXXXEO347ZIKNXSLI3JKRKJKF3IQ4RYAZLCLKDKQ3Q
 
 Devuelve el escrow con `"estado":"Liberado"` y `"aprobaciones":2`.
 
+### Probarlo desde el sitio
+
+1. Instala una wallet compatible (por ejemplo [Freighter](https://www.freighter.app)), cámbiala a **Testnet** y fondea tu cuenta con [Friendbot](https://friendbot.stellar.org/?addr=TU_DIRECCION) (el sitio trae el enlace).
+2. En `/estudio` pulsa **Conectar wallet**.
+3. Pulsa **Cargar ejemplo**: te pone a ti como firmante (umbral 1) junto a dos cuentas de prueba, así puedes completar el flujo con una sola wallet.
+4. **Crear escrow** → **Bloquear fondos** → **Firmar** (tu nombre) → **Liberar**. Tras cada paso aparece **Ver transacción** con el hash en Stellar Expert.
+
 ---
 
 ## Alcance y límites
@@ -197,7 +204,8 @@ Devuelve el escrow con `"estado":"Liberado"` y `"aprobaciones":2`.
 Esta es una práctica, así que el alcance es intencionalmente chico:
 
 - **El contrato registra el estado y las firmas, pero todavía no mueve tokens.** `depositar` y `liberar` cambian el estado on-chain; la transferencia real de fondos (con un token de Stellar) sería el siguiente paso.
-- **El estudio web usa una demo local.** La wallet (Freighter u otras, vía Stellar Wallets Kit) identifica al pagador, pero los escrows del estudio se guardan en el navegador (`localStorage`) y todavía no se envían al contrato desplegado.
+- **El estudio web tiene dos modos.** Con una wallet conectada opera sobre el contrato desplegado en Testnet (cada acción es una transacción firmada con enlace al explorador). El modo demo guarda todo en el navegador (`localStorage`) y sirve para recorrer el flujo sin wallet.
+- Cada firma debe hacerla la wallet del firmante: para probar con varios firmantes hay que conectar cada cuenta por turnos (o usar una sola cuenta como único firmante).
 - Cualquiera puede llamar `liberar` una vez cumplido el umbral; no le da ventaja a nadie porque el destino ya está fijado.
 
 Más detalle del flujo en [docs/flujo.md](docs/flujo.md).

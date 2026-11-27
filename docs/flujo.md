@@ -22,4 +22,9 @@ Abierto → Fondeado → Liberado
 
 ## Demo vs on-chain
 
-La UI en `frontend/` puede operar en **modo demo** (localStorage) para recorrer el flujo sin desplegar el contrato. El crate Rust en la raíz es la fuente de verdad on-chain (`cargo test` / `stellar contract build`).
+La UI en `frontend/` tiene dos modos:
+
+- **Wallet conectada (Testnet):** cada acción es una transacción al contrato desplegado, firmada con la wallet. La lista de sesiones se lee del contrato (`consultar` y `aprobo`).
+- **Modo demo:** el estado vive en `localStorage`, sin wallet ni red.
+
+El crate Rust en la raíz es la fuente de verdad on-chain (`cargo test` / `stellar contract build`).
