@@ -3,6 +3,7 @@
 import { FormEvent, useRef } from "react";
 import { motion } from "motion/react";
 import { Plus, Sparkles } from "lucide-react";
+import { nombreCancion } from "@/lib/canciones";
 import { Firmante, parsearFirmantes } from "@/lib/demo";
 
 export type NuevoEscrow = {
@@ -14,7 +15,6 @@ export type NuevoEscrow = {
 };
 
 const EJEMPLO = {
-  track: "Noches de Barrio",
   beneficiario: "GBENEF7QK3XLMN2P5RT6VWYZ4ABCDEF3HJKM",
   monto: "1500",
   umbral: "2",
@@ -41,9 +41,10 @@ export function EscrowForm({ onCrear, busy }: { onCrear: (n: NuevoEscrow) => boo
   function cargarEjemplo() {
     const f = ref.current;
     if (!f) return;
-    (Object.keys(EJEMPLO) as (keyof typeof EJEMPLO)[]).forEach((k) => {
+    const valores = { ...EJEMPLO, track: nombreCancion() };
+    (Object.keys(valores) as (keyof typeof valores)[]).forEach((k) => {
       const el = f.elements.namedItem(k) as HTMLInputElement | null;
-      if (el) el.value = EJEMPLO[k];
+      if (el) el.value = valores[k];
     });
   }
 

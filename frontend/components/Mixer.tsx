@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { animate, AnimatePresence, motion, useMotionValue, useTransform } from "motion/react";
 import { Check, RotateCcw, Rocket } from "lucide-react";
+import { useCancion } from "@/lib/canciones";
 import { Waveform } from "./Waveform";
 
 const ALTO = 170;
@@ -87,6 +88,7 @@ const UMBRAL = 2;
 export function Mixer() {
   const [firmas, setFirmas] = useState([false, false, false]);
   const [liberado, setLiberado] = useState(false);
+  const [cancion, nuevaCancion] = useCancion();
   const total = firmas.filter(Boolean).length;
   const listo = total >= UMBRAL;
 
@@ -98,13 +100,14 @@ export function Mixer() {
   function reiniciar() {
     setFirmas([false, false, false]);
     setLiberado(false);
+    nuevaCancion();
   }
 
   return (
     <div className="card overflow-hidden p-6 sm:p-10">
       <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
         <div>
-          <p className="font-mono text-xs text-[var(--muted)]">SESIÓN · NOCHES DE BARRIO · 1.500 XLM</p>
+          <p className="font-mono text-xs text-[var(--muted)]">SESIÓN · {cancion.toUpperCase()} · 1.500 XLM</p>
           <div className="mt-5 rounded-3xl border border-[var(--line)] bg-black/30 p-5">
             <Waveform seed={11} progreso={liberado ? 1 : total / UMBRAL > 1 ? 1 : total / UMBRAL} barras={48} tono="activo" />
             <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-[var(--muted)]">

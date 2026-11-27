@@ -12,8 +12,6 @@ const fade = {
   transition: { duration: 0.65, ease: "easeOut" as const },
 };
 
-const TRACKS = ["Noches de Barrio", "Sesión Dub Vol. 2", "Cumbia Eléctrica", "Demo Voz y Guitarra", "Beat Tape 07", "Single Verano", "Mezcla Final", "Coros en Vivo"];
-
 const PASOS = [
   { n: "01", titulo: "Se crea la sesión", texto: "El pagador define el track, el monto, quiénes firman y cuántas firmas hacen falta.", tag: "pagador" },
   { n: "02", titulo: "Se bloquean los fondos", texto: "El pago queda registrado como bloqueado. Ni pagador ni beneficiario lo mueven solos.", tag: "contrato" },
@@ -25,6 +23,17 @@ const RAZONES = [
   { icon: ShieldCheck, titulo: "Reglas que nadie cambia", texto: "El umbral y los firmantes quedan fijados al crear la sesión, sin depender de una persona." },
   { icon: Users, titulo: "Todos ven el mismo estado", texto: "Quién firmó y cuántas firmas faltan es público: no hay versiones distintas del trato." },
   { icon: Check, titulo: "Pensado para equipos chicos", texto: "Una canción, un monto, un puñado de firmantes. Sin intermediarios de por medio." },
+];
+
+const EJEMPLOS = [
+  "Sesión de estudio",
+  "Single de verano",
+  "Demo voz y guitarra",
+  "Beat tape 07",
+  "Mezcla final",
+  "Coros en vivo",
+  "EP en vivo",
+  "Cumbia eléctrica",
 ];
 
 function Titulo({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
@@ -41,7 +50,7 @@ export function Landing() {
     <>
       <div className="relative -mx-5 overflow-hidden border-y border-[var(--line)] bg-white/[0.02] py-5">
         <div className="marquee-track">
-          {[...TRACKS, ...TRACKS].map((t, i) => (
+          {[...EJEMPLOS, ...EJEMPLOS].map((t, i) => (
             <span key={i} className="font-display flex items-center gap-8 pr-8 text-2xl font-bold whitespace-nowrap text-white/25">
               {t}
               <span className="bg-grad h-2 w-2 rounded-full" />

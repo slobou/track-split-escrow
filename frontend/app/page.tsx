@@ -9,7 +9,7 @@ export default function Home() {
       <div className="grain" />
       <Nav variante="landing" />
 
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-28 px-5 pb-10">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-28 px-5 pb-10">
         <Hero />
         <Landing />
 

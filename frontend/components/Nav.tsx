@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { motion, useMotionValueEvent, useScroll, useSpring } from "motion/react";
 import { ArrowUpRight, LogOut } from "lucide-react";
 import { Equalizer } from "./Waveform";
 
@@ -16,15 +16,25 @@ type Props = {
 
 const LINKS = [
   { href: "#como-funciona", label: "Cómo funciona" },
-  { href: "#mezcladora", label: "Mezcladora" },
   { href: "#por-que", label: "Por qué" },
 ];
 
-export function Nav({ variante, address, onSalir }: Props) {
-  const [scrolled, setScrolled] = useState(false);
+const DURACION = 3 * 60;
 
+function timecode(p: number) {
+  const s = Math.round(p * DURACION);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+export function Nav({ variante, address, onSalir }: Props) {
+  const { scrollYProgress } = useScroll();
+  const progreso = useSpring(scrollYProgress, { stiffness: 140, damping: 26 });
+  const [tc, setTc] = useState("00:00");
+  const [solido, setSolido] = useState(false);
+
+  useMotionValueEvent(scrollYProgress, "change", (v) => setTc(timecode(Math.min(Math.max(v, 0), 1))));
   useEffect(() => {
-    const f = () => setScrolled(window.scrollY > 24);
+    const f = () => setSolido(window.scrollY > 8);
     f();
     window.addEventListener("scroll", f, { passive: true });
     return () => window.removeEventListener("scroll", f);
@@ -32,53 +42,64 @@ export function Nav({ variante, address, onSalir }: Props) {
 
   return (
     <motion.header
-      initial={{ y: -40, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed inset-x-0 top-0 z-40 px-3 pt-3"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.8 }}
+      className="fixed inset-x-0 top-0 z-40 border-b backdrop-blur-xl transition-colors duration-300"
+      style={{
+        borderColor: "var(--line)",
+        background: solido ? "rgba(3,16,15,0.82)" : "rgba(3,16,15,0.25)",
+      }}
     >
-      <nav
-        className="mx-auto flex max-w-5xl items-center justify-between rounded-full border py-2 pr-2 pl-5 backdrop-blur-xl transition-all duration-500"
-        style={{
-          borderColor: scrolled ? "var(--line-strong)" : "var(--line)",
-          background: scrolled ? "rgba(3,16,15,0.78)" : "rgba(255,255,255,0.04)",
-        }}
-      >
-        <Link href="/" className="flex items-center gap-2.5">
+      <nav className="mx-auto grid h-16 max-w-6xl grid-cols-[1fr_auto] items-center gap-6 px-5 md:grid-cols-[1fr_auto_1fr]">
+        <Link href="/" className="flex items-center gap-3 justify-self-start">
           <Equalizer className="!h-5 !gap-[3px]" />
-          <span className="font-display text-[17px] font-bold">Track Split</span>
+          <span className="font-display text-[17px] font-bold whitespace-nowrap">Track Split</span>
         </Link>
 
-        {variante === "landing" && (
-          <ul className="hidden items-center gap-8 text-sm text-[var(--muted)] md:flex">
+        {variante === "landing" ? (
+          <ul className="hidden items-center gap-9 text-sm text-[var(--muted)] md:flex">
             {LINKS.map((l) => (
               <li key={l.href}>
-                <a href={l.href} className="transition-colors hover:text-[var(--mint)]">
+                <a href={l.href} className="transition-colors hover:text-[var(--text)]">
                   {l.label}
                 </a>
               </li>
             ))}
           </ul>
+        ) : (
+          <span className="hidden font-mono text-xs tracking-widest text-[var(--muted)] uppercase md:block">Estudio · Testnet</span>
         )}
 
-        {variante === "landing" ? (
-          <Link href="/estudio" className="btn btn-primary !rounded-full !px-5 !py-2.5">
-            Entrar al estudio <ArrowUpRight size={16} />
-          </Link>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Link href="/" className="btn !px-4 !py-2 text-sm text-[var(--muted)] hover:text-[var(--text)]">
-              Inicio
+        <div className="flex items-center gap-4 justify-self-end">
+          <span className="hidden font-mono text-xs text-[var(--muted)] tabular-nums lg:block">
+            <span className="text-[var(--mint)]">{tc}</span> / 03:00
+          </span>
+
+          {variante === "landing" ? (
+            <Link href="/estudio" className="btn btn-primary !rounded-lg !px-4 !py-2.5">
+              Entrar al estudio <ArrowUpRight size={16} />
             </Link>
-            {address && (
-              <button type="button" onClick={onSalir} className="btn btn-ghost !rounded-full !px-4 !py-2 text-xs">
-                <span className="font-mono">{corto(address)}</span>
-                <LogOut size={14} />
-              </button>
-            )}
-          </div>
-        )}
+          ) : (
+            <>
+              <Link href="/" className="btn !px-3 !py-2 text-sm text-[var(--muted)] hover:text-[var(--text)]">
+                Inicio
+              </Link>
+              {address && (
+                <button type="button" onClick={onSalir} className="btn btn-ghost !rounded-lg !px-3.5 !py-2 text-xs">
+                  <span className="font-mono">{corto(address)}</span>
+                  <LogOut size={14} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </nav>
+
+      <motion.div
+        className="bg-grad absolute inset-x-0 bottom-[-1px] h-[2px] origin-left"
+        style={{ scaleX: progreso }}
+      />
     </motion.header>
   );
 }

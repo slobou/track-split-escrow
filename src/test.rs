@@ -23,7 +23,7 @@ fn crea_y_deposita() {
     let p = Address::generate(&env);
     let a1 = Address::generate(&env);
     let a2 = Address::generate(&env);
-    let track = String::from_str(&env, "Noche en Escazú");
+    let track = String::from_str(&env, "Single de verano");
 
     let id = client.crear(
         &pagador,

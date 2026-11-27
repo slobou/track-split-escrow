@@ -8,7 +8,7 @@ function alturas(seed: number, n: number) {
     s = (s * 9301 + 49297) % 233280;
     const base = s / 233280;
     const envelope = 0.45 + 0.55 * Math.sin((i / n) * Math.PI);
-    return 0.18 + base * 0.82 * envelope;
+    return Math.round((0.18 + base * 0.82 * envelope) * 1000) / 1000;
   });
 }
 
@@ -40,8 +40,8 @@ export function Waveform({ seed, progreso, tono = "activo", barras = 56 }: Props
             initial={{ scaleY: 0.1, opacity: 0 }}
             animate={{ scaleY: 1, opacity: 1, backgroundColor: color }}
             transition={{ delay: i * 0.012, duration: 0.45, ease: "easeOut" }}
-            className="w-[3px] flex-1 rounded-full"
-            style={{ height: `${h * 100}%`, minWidth: 2 }}
+            className="min-w-[2px] flex-1 rounded-full"
+            style={{ height: `${Math.round(h * 100)}%` }}
           />
         );
       })}

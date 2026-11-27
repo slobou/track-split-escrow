@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="es" suppressHydrationWarning className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body className="antialiased">{children}</body>
     </html>
   );
