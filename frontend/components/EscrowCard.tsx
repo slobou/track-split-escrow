@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Ban, Check, Disc3, Lock, Rocket, Wallet } from "lucide-react";
+import { Ban, Check, Disc3, ExternalLink, Lock, Rocket, Wallet } from "lucide-react";
+import { urlTx } from "@/lib/chain";
 import { EscrowDemo } from "@/lib/demo";
 import { Waveform } from "./Waveform";
 
@@ -17,13 +18,14 @@ const ESTADO = {
 type Props = {
   escrow: EscrowDemo;
   busy: boolean;
+  txHash?: string;
   onDepositar: () => void;
   onFirmar: (address: string) => void;
   onLiberar: () => void;
   onCancelar: () => void;
 };
 
-export function EscrowCard({ escrow: e, busy, onDepositar, onFirmar, onLiberar, onCancelar }: Props) {
+export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onLiberar, onCancelar }: Props) {
   const meta = ESTADO[e.estado];
   const Icono = meta.icon;
   const firmas = e.aprobaron.length;
@@ -118,6 +120,17 @@ export function EscrowCard({ escrow: e, busy, onDepositar, onFirmar, onLiberar, 
           );
         })}
       </div>
+
+      {txHash && (
+        <a
+          href={urlTx(txHash)}
+          target="_blank"
+          rel="noreferrer"
+          className="relative mt-5 inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--mint)] underline"
+        >
+          Última transacción en Stellar Expert <ExternalLink size={12} />
+        </a>
+      )}
 
       {!cerrado && (
         <div className="relative mt-6 flex flex-wrap items-center gap-3">

@@ -22,26 +22,49 @@ const EJEMPLO = {
     "Productor: GPROD4TXN8QJ2LMV5RBKCD3HWYZ7AEF6NPQS\nVoz principal: GVOZ9RMH2KQ5TBNXD7LCW4YPEJ3AFZ8UGSV\nGuitarra: GGUIT3WPL6NZ8QDXV2KCR5HMTYE9JAB4FUS",
 };
 
-export function EscrowForm({ onCrear, busy }: { onCrear: (n: NuevoEscrow) => boolean; busy: boolean }) {
+const TESTNET = {
+  beneficiario: "GD6ZHGKBF67KQSFT2YVS3DGOYZWGOZZADAJ2HPWZICF6YA2UGVCRK2DU",
+  productor: "GBP5SBYEIHJBPXBTCTDPP5R46QKNUKG72I7CNM5QNYI5DQTQKQ2WQCUS",
+  voz: "GBGOPMNWFKWZV6Y6P4P6DSBPXT3O43XIODU2I5CUXVB6BHYRAMHOAZON",
+};
+
+type Props = {
+  onCrear: (n: NuevoEscrow) => Promise<boolean>;
+  busy: boolean;
+  address: string | null;
+  enCadena: boolean;
+};
+
+export function EscrowForm({ onCrear, busy, address, enCadena }: Props) {
   const ref = useRef<HTMLFormElement>(null);
 
-  function submit(e: FormEvent<HTMLFormElement>) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const d = new FormData(e.currentTarget);
-    const ok = onCrear({
+    const form = e.currentTarget;
+    const d = new FormData(form);
+    const ok = await onCrear({
       track: String(d.get("track") || ""),
       beneficiario: String(d.get("beneficiario") || ""),
       monto: Number(d.get("monto")),
       umbral: Number(d.get("umbral")),
       firmantes: parsearFirmantes(String(d.get("firmantes") || "")),
     });
-    if (ok) ref.current?.reset();
+    if (ok) form.reset();
   }
 
   function cargarEjemplo() {
     const f = ref.current;
     if (!f) return;
-    const valores = { ...EJEMPLO, track: nombreCancion() };
+    const base =
+      enCadena && address
+        ? {
+            beneficiario: TESTNET.beneficiario,
+            monto: "1500",
+            umbral: "1",
+            firmantes: `Tú: ${address}\nProductor: ${TESTNET.productor}\nVoz principal: ${TESTNET.voz}`,
+          }
+        : EJEMPLO;
+    const valores = { ...base, track: nombreCancion() };
     (Object.keys(valores) as (keyof typeof valores)[]).forEach((k) => {
       const el = f.elements.namedItem(k) as HTMLInputElement | null;
       if (el) el.value = valores[k];
