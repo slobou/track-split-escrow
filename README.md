@@ -193,7 +193,7 @@ Devuelve el escrow con `"estado":"Liberado"` y `"aprobaciones":2`.
 ### Probarlo desde el sitio
 
 1. Instala una wallet compatible (por ejemplo [Freighter](https://www.freighter.app)), cámbiala a **Testnet** y fondea tu cuenta con [Friendbot](https://friendbot.stellar.org/?addr=TU_DIRECCION) (el sitio trae el enlace).
-2. En `/estudio` pulsa **Conectar wallet**.
+2. En `/estudio` pulsa **Conectar wallet**. La wallet debe estar en **Testnet** (si está en Main Net, el sitio te avisa y la wallet se niega a firmar).
 3. Pulsa **Cargar ejemplo**: te pone a ti como firmante (umbral 1) junto a dos cuentas de prueba, así puedes completar el flujo con una sola wallet.
 4. **Crear escrow** → **Bloquear fondos** → **Firmar** (tu nombre) → **Liberar**. Tras cada paso aparece **Ver transacción** con el hash en Stellar Expert.
 

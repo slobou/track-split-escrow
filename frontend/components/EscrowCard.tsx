@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Ban, Check, Disc3, ExternalLink, Lock, Rocket, Wallet } from "lucide-react";
+import { Ban, Check, Disc3, ExternalLink, Lock, LockKeyhole, Rocket, Wallet } from "lucide-react";
 import { urlTx } from "@/lib/chain";
 import { EscrowDemo } from "@/lib/demo";
 import { Waveform } from "./Waveform";
@@ -19,13 +19,14 @@ type Props = {
   escrow: EscrowDemo;
   busy: boolean;
   txHash?: string;
+  miAddress?: string;
   onDepositar: () => void;
   onFirmar: (address: string) => void;
   onLiberar: () => void;
   onCancelar: () => void;
 };
 
-export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onLiberar, onCancelar }: Props) {
+export function EscrowCard({ escrow: e, busy, txHash, miAddress, onDepositar, onFirmar, onLiberar, onCancelar }: Props) {
   const meta = ESTADO[e.estado];
   const Icono = meta.icon;
   const firmas = e.aprobaron.length;
@@ -33,6 +34,7 @@ export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onL
   const tono = e.estado === "Cancelado" ? "cancelado" : e.estado === "Liberado" ? "liberado" : "activo";
   const listo = e.estado === "Fondeado" && firmas >= e.umbral;
   const cerrado = e.estado === "Liberado" || e.estado === "Cancelado";
+  const esPagador = !miAddress || e.pagador === miAddress;
 
   return (
     <motion.li
@@ -87,7 +89,10 @@ export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onL
       <div className="relative mt-6 grid gap-2.5 sm:grid-cols-2">
         {e.firmantes.map((f) => {
           const firmo = e.aprobaron.includes(f.address);
-          const puede = e.estado === "Fondeado" && !firmo && !busy;
+          const esMia = !miAddress || f.address === miAddress;
+          const pendiente = e.estado === "Fondeado" && !firmo;
+          const puede = pendiente && !busy && esMia;
+          const ajena = pendiente && !esMia;
           return (
             <motion.button
               key={f.address}
@@ -95,16 +100,28 @@ export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onL
               whileHover={puede ? { y: -2 } : undefined}
               whileTap={puede ? { scale: 0.97 } : undefined}
               disabled={!puede}
+              title={ajena ? "Solo la wallet de este firmante puede firmar" : undefined}
               onClick={() => onFirmar(f.address)}
               className="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors disabled:cursor-default"
               style={{
                 borderColor: firmo ? "rgba(61,245,176,0.55)" : "var(--line)",
                 background: firmo ? "rgba(61,245,176,0.09)" : "rgba(0,0,0,0.22)",
+                opacity: ajena ? 0.55 : 1,
+                cursor: puede ? "pointer" : ajena ? "not-allowed" : "default",
               }}
             >
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">{f.nombre}</span>
-                <span className="font-mono text-[11px] text-[var(--muted)]">{corto(f.address)}</span>
+                <span className="block truncate text-sm font-semibold">
+                  {f.nombre}
+                  {miAddress && f.address === miAddress && (
+                    <span className="ml-2 rounded-full bg-[var(--mint)]/15 px-2 py-0.5 align-middle font-mono text-[10px] text-[var(--mint)]">
+                      tu wallet
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono text-[11px] text-[var(--muted)]">
+                  {ajena ? `${corto(f.address)} · firma con su propia wallet` : corto(f.address)}
+                </span>
               </span>
               <span
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[10px] font-bold"
@@ -114,7 +131,7 @@ export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onL
                   background: firmo ? "var(--mint)" : "transparent",
                 }}
               >
-                {firmo ? <Check size={16} strokeWidth={3} /> : puede ? "Firmar" : "—"}
+                {firmo ? <Check size={16} strokeWidth={3} /> : puede ? "Firmar" : ajena ? <LockKeyhole size={14} /> : "—"}
               </span>
             </motion.button>
           );
@@ -122,20 +139,17 @@ export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onL
       </div>
 
       {txHash && (
-        <a
-          href={urlTx(txHash)}
-          target="_blank"
-          rel="noreferrer"
-          className="relative mt-5 inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--mint)] underline"
-        >
-          Última transacción en Stellar Expert <ExternalLink size={12} />
-        </a>
+        <div className="relative mt-5">
+          <a href={urlTx(txHash)} target="_blank" rel="noreferrer" className="chip-link chip-link-muted">
+            Última transacción <ExternalLink size={11} />
+          </a>
+        </div>
       )}
 
       {!cerrado && (
         <div className="relative mt-6 flex flex-wrap items-center gap-3">
           {e.estado === "Abierto" && (
-            <button type="button" disabled={busy} onClick={onDepositar} className="btn btn-primary">
+            <button type="button" disabled={busy || !esPagador} title={!esPagador ? "Solo el pagador puede bloquear fondos" : undefined} onClick={onDepositar} className="btn btn-primary">
               <Lock size={16} /> Bloquear fondos
             </button>
           )}
@@ -144,7 +158,7 @@ export function EscrowCard({ escrow: e, busy, txHash, onDepositar, onFirmar, onL
               <Rocket size={16} /> {listo ? "Liberar al beneficiario" : `Faltan ${e.umbral - firmas} firma(s)`}
             </button>
           )}
-          <button type="button" disabled={busy} onClick={onCancelar} className="btn btn-ghost">
+          <button type="button" disabled={busy || !esPagador} title={!esPagador ? "Solo el pagador puede cancelar" : undefined} onClick={onCancelar} className="btn btn-ghost">
             Cancelar
           </button>
           <span className="ml-auto font-mono text-[11px] text-[var(--muted)]">

@@ -11,7 +11,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import type { EscrowDemo, Estado, Firmante } from "./demo";
-import { signTx } from "./wallet";
+import { MENSAJE_RED, signTx } from "./wallet";
 
 export const CONTRACT_ID =
   process.env.NEXT_PUBLIC_CONTRACT_ID || "CCVMNYMN3FXXXEO347ZIKNXSLI3JKRKJKF3IQ4RYAZLCLKDKQ3Q3BPXR";
@@ -20,6 +20,12 @@ export const urlFriendbot = (a: string) => `https://friendbot.stellar.org/?addr=
 
 export const urlTx = (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`;
 export const urlContrato = `https://stellar.expert/explorer/testnet/contract/${CONTRACT_ID}`;
+
+let alCambiarFase: ((fase: string) => void) | null = null;
+export function escucharFase(fn: ((fase: string) => void) | null) {
+  alCambiarFase = fn;
+}
+const fase = (t: string) => alCambiarFase?.(t);
 
 const server = new rpc.Server(RPC_URL);
 const contrato = new Contract(CONTRACT_ID);
@@ -35,14 +41,32 @@ const ERRORES: Record<number, string> = {
   8: "Aún faltan firmas para liberar.",
 };
 
+function textoDe(err: unknown): string {
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object") {
+    const o = err as { message?: unknown; error?: unknown };
+    if (typeof o.message === "string") return o.message;
+    if (o.error) return textoDe(o.error);
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "";
+    }
+  }
+  return String(err);
+}
+
 function traducir(err: unknown): Error {
-  const texto = err instanceof Error ? err.message : String(err);
+  const texto = textoDe(err);
+  if (/main ?net|test ?net|network passphrase|wrong network/i.test(texto)) return new Error(MENSAJE_RED);
   const m = texto.match(/Error\(Contract, #(\d+)\)/);
   if (m && ERRORES[Number(m[1])]) return new Error(ERRORES[Number(m[1])]);
   if (/account not found|Account not found|status 404/i.test(texto)) {
     return new Error("Tu cuenta no existe en Testnet todavía. Fóndala con Friendbot (enlace abajo) y vuelve a intentar.");
   }
-  if (/User declined|rejected|denied|closed/i.test(texto)) return new Error("Cancelaste la firma en la wallet.");
+  if (/User declined|rejected|denied|closed|cancel/i.test(texto)) return new Error("Cancelaste la firma en la wallet.");
+  if (!texto || texto === "{}") return new Error("La wallet no pudo firmar. Revisa que esté en Testnet y desbloqueada.");
   return new Error(texto.length > 160 ? `${texto.slice(0, 160)}…` : texto);
 }
 
@@ -85,16 +109,20 @@ async function simular(op: xdr.Operation, fuente: string) {
 /** Firma y envía una llamada al contrato. Devuelve el hash y el valor devuelto. */
 async function enviar(metodo: string, args: xdr.ScVal[], quien: string) {
   try {
+    fase("Preparando la transacción…");
     const cuenta = await server.getAccount(quien);
     const tx = new TransactionBuilder(cuenta, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
       .addOperation(contrato.call(metodo, ...args))
       .setTimeout(60)
       .build();
     const lista = await server.prepareTransaction(tx);
+    fase("Confirma la firma en tu wallet…");
     const firmada = TransactionBuilder.fromXDR(await signTx(lista.toXDR(), quien), Networks.TESTNET);
+    fase("Enviando a Testnet…");
     const envio = await server.sendTransaction(firmada);
     if (envio.status === "ERROR") throw new Error("La red rechazó la transacción.");
 
+    fase("Esperando confirmación de la red…");
     for (let i = 0; i < 30; i++) {
       const r = await server.getTransaction(envio.hash);
       if (r.status === "SUCCESS") {
@@ -181,6 +209,8 @@ async function leerEscrow(id: number, fuente: string): Promise<EscrowDemo | null
     estado: raw.estado[0],
   };
 }
+
+export const leerUno = (id: number, quien: string) => leerEscrow(id, quien);
 
 /** Lee del contrato los escrows donde participa esta cuenta (recorre ids hasta que no existan más). */
 export async function listarOnChain(quien: string): Promise<EscrowDemo[]> {

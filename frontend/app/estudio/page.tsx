@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ExternalLink, RefreshCw, Wallet, Zap } from "lucide-react";
+import { CircleAlert, CircleCheck, ExternalLink, LoaderCircle, RefreshCw, Wallet, X, Zap } from "lucide-react";
 import {
   aprobar,
   cancelar,
@@ -17,6 +17,8 @@ import {
   cancelarOnChain,
   crearOnChain,
   depositarOnChain,
+  escucharFase,
+  leerUno,
   liberarOnChain,
   listarOnChain,
   recordarNombres,
@@ -25,7 +27,7 @@ import {
   urlTx,
 } from "@/lib/chain";
 import { guardarSesion, leerSesion } from "@/lib/session";
-import { connectWallet, disconnectWallet } from "@/lib/wallet";
+import { connectWallet, disconnectWallet, MENSAJE_RED, redIncorrecta } from "@/lib/wallet";
 import { Nav } from "@/components/Nav";
 import { EscrowForm, NuevoEscrow } from "@/components/EscrowForm";
 import { EscrowCard } from "@/components/EscrowCard";
@@ -33,7 +35,9 @@ import { EscrowCard } from "@/components/EscrowCard";
 const DEMO_ADDRESS = "GPAGADORDEMO7K2MXQ4TBNV8LRCW5HYPEJ3AFZ6UGSDX";
 const TX_KEY = "track-split-tx";
 
-type Aviso = { texto: string; hash?: string };
+const DURACION = (a: Aviso) => (a.hash ? 14000 : a.error ? 8000 : 4500);
+
+type Aviso = { texto: string; hash?: string; error?: boolean };
 
 function leerTx(): Record<number, string> {
   try {
@@ -50,8 +54,9 @@ export default function Estudio() {
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [txs, setTxs] = useState<Record<number, string>>({});
   const enCadena = !!address && address !== DEMO_ADDRESS;
-  const setMensaje = (texto: string, hash?: string) => setAviso(texto ? { texto, hash } : null);
+  const setMensaje = (texto: string, hash?: string, error = false) => setAviso(texto ? { texto, hash, error } : null);
   const [busy, setBusy] = useState(false);
+  const [fase, setFase] = useState("");
 
   const refresh = async (quien: string | null = address) => {
     if (!quien) return;
@@ -59,7 +64,7 @@ export default function Estudio() {
     try {
       setEscrows(await listarOnChain(quien));
     } catch {
-      setMensaje("No se pudo leer el contrato en Testnet. Intenta actualizar.");
+      setMensaje("No se pudo leer el contrato en Testnet. Intenta actualizar.", undefined, true);
     }
   };
 
@@ -73,8 +78,13 @@ export default function Estudio() {
   }, []);
 
   useEffect(() => {
+    escucharFase(setFase);
+    return () => escucharFase(null);
+  }, []);
+
+  useEffect(() => {
     if (!aviso) return;
-    const t = setTimeout(() => setAviso(null), aviso.hash ? 14000 : 4500);
+    const t = setTimeout(() => setAviso(null), DURACION(aviso));
     return () => clearTimeout(t);
   }, [aviso]);
 
@@ -87,9 +97,11 @@ export default function Estudio() {
 
   async function conectar() {
     try {
-      entrar(await connectWallet());
+      const a = await connectWallet();
+      entrar(a);
+      if (await redIncorrecta()) setMensaje(MENSAJE_RED, undefined, true);
     } catch {
-      setMensaje("No se pudo conectar la wallet. Puedes probar el modo demo.");
+      setMensaje("No se pudo conectar la wallet. Puedes probar el modo demo.", undefined, true);
     }
   }
 
@@ -107,6 +119,7 @@ export default function Estudio() {
 
   async function accion(fn: () => unknown, ok: string, id?: number): Promise<boolean> {
     setBusy(true);
+    setFase(enCadena ? "Preparando…" : "");
     try {
       const r = (await fn()) as { hash?: string; id?: number } | undefined;
       const hash = r?.hash;
@@ -117,20 +130,27 @@ export default function Estudio() {
         localStorage.setItem(TX_KEY, JSON.stringify(nuevo));
       }
       setMensaje(ok, hash);
-      await refresh();
+      if (enCadena && idTx && address) {
+        setFase("Actualizando la sesión…");
+        const nueva = await leerUno(idTx, address);
+        if (nueva) setEscrows((prev) => [nueva, ...prev.filter((x) => x.id !== nueva.id)].sort((a, b) => b.id - a.id));
+      } else {
+        await refresh();
+      }
       return true;
     } catch (err) {
-      setMensaje(err instanceof Error ? err.message : "Algo salió mal.");
+      setMensaje(err instanceof Error ? err.message : "Algo salió mal.", undefined, true);
       return false;
     } finally {
       setBusy(false);
+      setFase("");
     }
   }
 
   async function onCrear(n: NuevoEscrow): Promise<boolean> {
     if (!address) return false;
     if (n.umbral < 1 || n.umbral > n.firmantes.length) {
-      setMensaje("Las firmas necesarias deben estar entre 1 y el total de firmantes.");
+      setMensaje("Las firmas necesarias deben estar entre 1 y el total de firmantes.", undefined, true);
       return false;
     }
     if (!enCadena) return accion(() => crearEscrow({ ...n, pagador: address }), "Escrow creado. Ahora bloquea los fondos.");
@@ -142,7 +162,7 @@ export default function Estudio() {
     if (!address) return;
     if (!enCadena) return accion(() => aprobar(id, quien), "Firma registrada.");
     if (quien !== address) {
-      setMensaje("Esa firma la debe hacer la wallet de ese firmante. Conecta esa cuenta para firmar.");
+      setMensaje("Esa firma la debe hacer la wallet de ese firmante. Conecta esa cuenta para firmar.", undefined, true);
       return;
     }
     return accion(() => aprobarOnChain(id, address), "Firma registrada en Testnet.", id);
@@ -156,6 +176,24 @@ export default function Estudio() {
       <div className="aurora" />
       <div className="grain" />
       <Nav variante="estudio" address={address} onSalir={salir} />
+
+      <AnimatePresence>
+        {busy && enCadena && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 overflow-hidden bg-white/5"
+          >
+            <motion.div
+              className="h-full w-1/3 bg-[var(--grad)]"
+              style={{ background: "linear-gradient(90deg, transparent, var(--mint), var(--blue), transparent)" }}
+              animate={{ x: ["-100%", "300%"] }}
+              transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-5 pt-32 pb-16">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
@@ -195,15 +233,21 @@ export default function Estudio() {
             >
               {enCadena ? (
                 <>
-                  <span className="font-mono">
-                    <span className="text-[var(--mint)]">● Testnet</span> · conectado a contrato real
-                  </span>
-                  <span className="flex flex-wrap gap-4">
-                    <a href={urlContrato} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
-                      Ver contrato <ExternalLink size={12} />
+                  {busy && fase ? (
+                    <span className="inline-flex items-center gap-2 font-mono text-[var(--mint)]">
+                      <LoaderCircle size={14} className="animate-spin" /> {fase}
+                    </span>
+                  ) : (
+                    <span className="font-mono">
+                      <span className="text-[var(--mint)]">● Testnet</span> · conectado a contrato real
+                    </span>
+                  )}
+                  <span className="flex flex-wrap gap-2">
+                    <a href={urlContrato} target="_blank" rel="noreferrer" className="chip-link chip-link-muted">
+                      Ver contrato <ExternalLink size={11} />
                     </a>
-                    <a href={urlFriendbot(address)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
-                      Fondear mi cuenta de prueba <ExternalLink size={12} />
+                    <a href={urlFriendbot(address)} target="_blank" rel="noreferrer" className="chip-link chip-link-muted">
+                      Fondear cuenta de prueba <ExternalLink size={11} />
                     </a>
                   </span>
                 </>
@@ -253,6 +297,7 @@ export default function Estudio() {
                         escrow={e}
                         busy={busy}
                         txHash={txs[e.id]}
+                        miAddress={enCadena ? address : undefined}
                         onDepositar={() =>
                           enCadena
                             ? accion(() => depositarOnChain(e.id, address), "Fondos bloqueados en Testnet.", e.id)
@@ -291,22 +336,45 @@ export default function Estudio() {
       <AnimatePresence>
         {aviso && (
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="card fixed inset-x-0 bottom-6 z-50 mx-auto w-fit max-w-[90vw] border-[var(--line-strong)] bg-[#06201d]/90 px-5 py-3 text-sm font-medium"
+            key={aviso.texto + (aviso.hash ?? "")}
+            role="status"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 40 }}
+            transition={{ type: "spring", stiffness: 260, damping: 26 }}
+            className="fixed top-24 right-4 left-4 z-50 overflow-hidden rounded-2xl border bg-[#06201d]/95 shadow-2xl shadow-black/50 backdrop-blur-xl sm:left-auto sm:w-[380px]"
+            style={{ borderColor: aviso.error ? "rgba(255,107,129,0.5)" : "var(--line-strong)" }}
           >
-            {aviso.texto}
-            {aviso.hash && (
-              <a
-                href={urlTx(aviso.hash)}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-3 inline-flex items-center gap-1 text-[var(--mint)] underline"
+            <div className="flex items-start gap-3 p-4">
+              {aviso.error ? (
+                <CircleAlert size={20} className="mt-0.5 shrink-0 text-[#ff6b81]" />
+              ) : (
+                <CircleCheck size={20} className="mt-0.5 shrink-0 text-[var(--mint)]" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm leading-snug font-medium">{aviso.texto}</p>
+                {aviso.hash && (
+                  <a href={urlTx(aviso.hash)} target="_blank" rel="noreferrer" className="chip-link mt-3">
+                    Ver en Stellar Expert <ExternalLink size={11} />
+                  </a>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setAviso(null)}
+                aria-label="Cerrar aviso"
+                className="-mt-1 -mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-full text-[var(--muted)] transition-colors hover:bg-white/10 hover:text-white"
               >
-                Ver transacción <ExternalLink size={13} />
-              </a>
-            )}
+                <X size={15} />
+              </button>
+            </div>
+            <motion.div
+              initial={{ scaleX: 1 }}
+              animate={{ scaleX: 0 }}
+              transition={{ duration: DURACION(aviso) / 1000, ease: "linear" }}
+              style={{ transformOrigin: "left", background: aviso.error ? "#ff6b81" : "var(--mint)" }}
+              className="h-0.5 opacity-70"
+            />
           </motion.div>
         )}
       </AnimatePresence>
