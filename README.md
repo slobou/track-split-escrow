@@ -38,7 +38,10 @@ Artefacto: `target/wasm32v1-none/release/track_split_escrow.wasm`
 
 ## Frontend
 
-Demo Next.js (estilo clase Oppia) con wallet Stellar Testnet.
+Next.js (estilo clase Oppia) con **Stellar Testnet**. Nunca usa mainnet: la wallet se inicializa con `Networks.TESTNET`.
+
+- `/` — landing: qué es, cómo funciona y una mezcladora interactiva.
+- `/estudio` — la app: conectar wallet (o modo demo), crear sesiones, bloquear fondos, firmar y liberar.
 
 ```bash
 cd frontend
@@ -52,21 +55,18 @@ Abrir [http://localhost:3000](http://localhost:3000).
 npm run build
 ```
 
-Variables opcionales en `frontend/.env.local`:
+### Estado actual
 
-```
-NEXT_PUBLIC_CONTRACT_ID=C...
-```
+La wallet (Freighter u otras vía Stellar Wallets Kit) identifica al pagador. El libro de escrows del estudio es una **demo local** (`localStorage`); todavía no firma transacciones contra el contrato desplegado.
 
-Sin `CONTRACT_ID`, la UI corre en **modo demo** (estado local) para recorrer el flujo.
-En demo, incluí tu propia dirección entre los firmantes si querés aprobar después.
+Los nombres de canción de los ejemplos se generan con [Faker.js](https://fakerjs.dev).
 
 Más detalle del flujo: [docs/flujo.md](docs/flujo.md).
 
 ## Stack
 
 - Soroban SDK 28 / Stellar CLI  
-- Next.js + Tailwind + Stellar Wallets Kit  
+- Next.js + Tailwind + Stellar Wallets Kit + motion  
 - Testnet  
 
 ## Licencia
