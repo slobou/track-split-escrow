@@ -110,7 +110,9 @@ stellar contract build    # genera el .wasm
 
 El artefacto queda en `target/wasm32v1-none/release/track_split_escrow.wasm`.
 
-### Probarlo en Testnet (opcional)
+### Desplegarlo y probarlo en Testnet
+
+Los comandos que se usaron para la [prueba real](#prueba-real-en-stellar-testnet):
 
 ```bash
 stellar keys generate pagador --network testnet --fund
@@ -160,6 +162,33 @@ Abrir [http://localhost:3000](http://localhost:3000).
 | `no_se_aprueba_sin_depositar` | No se puede firmar antes de bloquear fondos |
 | `no_se_libera_sin_depositar` | No se puede liberar antes de bloquear fondos |
 | `no_se_cancela_un_escrow_liberado` | Una sesión liberada ya no se puede cancelar |
+
+---
+
+## Prueba real en Stellar Testnet
+
+El contrato está desplegado y se ejecutó el flujo completo con 4 cuentas de prueba (pagador, productor, voz principal y beneficiario). Cualquiera puede verificarlo en el explorador:
+
+**Contrato:** [`CCVMNYMN3FXXXEO347ZIKNXSLI3JKRKJKF3IQ4RYAZLCLKDKQ3Q3BPXR`](https://stellar.expert/explorer/testnet/contract/CCVMNYMN3FXXXEO347ZIKNXSLI3JKRKJKF3IQ4RYAZLCLKDKQ3Q3BPXR)
+
+| Paso | Quién firma | Resultado | Transacción |
+|------|-------------|-----------|-------------|
+| Despliegue | pagador | Contrato creado | [818907b1…](https://stellar.expert/explorer/testnet/tx/818907b122b36e5bf3c5eadd130cff748732afdffe4d581f2b6b1c94dd8a8fb5) |
+| `crear` ("Single de verano", 1500, umbral 2 de 2) | pagador | Devuelve el id `1` | [9dd263f7…](https://stellar.expert/explorer/testnet/tx/9dd263f7780d3a3518e7003916dc55df594c447ec72823587b56dee7de8f3382) |
+| `depositar` | pagador | Estado `Fondeado` | [3c66f65c…](https://stellar.expert/explorer/testnet/tx/3c66f65c6354d54e1f4a5b14a2519b4400b607136496b4f9575f94d82c536a34) |
+| `liberar` sin firmas | pagador | **Rechazado**: `Error #8 UmbralNoAlcanzado` | (no llega a la red) |
+| `aprobar` | productor | 1 de 2 firmas | [985a3c9c…](https://stellar.expert/explorer/testnet/tx/985a3c9c8f97d4b12f8d08fe96c01adee47a0e8d9b0a9b15541422c60cc40091) |
+| `aprobar` | voz principal | 2 de 2 firmas | [86914189…](https://stellar.expert/explorer/testnet/tx/8691418942e0ca62ae92f5b7b48ee74e90ec09de5a678cecf4ef96ca637b8ced) |
+| `liberar` | pagador | Estado `Liberado` | [195a2abc…](https://stellar.expert/explorer/testnet/tx/195a2abc1f1541ea12b7fef38b15284ecec4d6d79daf7e23056d0207196e75a1) |
+
+Para comprobar el resultado final directamente desde la red:
+
+```bash
+stellar contract invoke --id CCVMNYMN3FXXXEO347ZIKNXSLI3JKRKJKF3IQ4RYAZLCLKDKQ3Q3BPXR \
+  --network testnet --source-account <tu_cuenta> -- consultar --id 1
+```
+
+Devuelve el escrow con `"estado":"Liberado"` y `"aprobaciones":2`.
 
 ---
 
